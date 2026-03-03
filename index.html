@@ -15,7 +15,7 @@ body, canvas {
 
   body { margin: 0; overflow: hidden; background: black; }
   #gameContainer { position: relative; width: 800px; height: 600px; margin: 0 auto; }
-  canvas { display: block; background: #000; }
+  canvas { display: block; background: #000; transform: translateZ(0); will-change: transform; } /* reduce phone lag */
   #startOverlay {
   transition: opacity 1.5s ease;
   position: absolute;
@@ -56,7 +56,7 @@ const mirror={x:480,y:150,width:140,height:250}, restartButton={x:10,y:10,width:
 const newMirrorScale=0.15, newMirrorCropPercent=0.75, newMirrorXOffset=0, newMirrorYOffset=-10;
 
 // ---------------- CHARACTER ----------------
-let charX=-250,charY=400,speed=150,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false; // speed in px/sec
+let charX=-100,charY=400,speed=200,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false; // start -100, speed px/sec
 let walkFrame=0,frameCount=0,frameDelay=0.1; // frameDelay in seconds (animation)
 
 // ---------------- SOUNDS ----------------
@@ -89,6 +89,7 @@ let messages = [
   { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
 ];
 let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=22, waitingForClick=false; // chars/sec (slower on phone = fewer bleeps, less lag)
+let dialogueBoxCacheText = "", dialogueBoxCacheLines = []; // cache wrapped lines to reduce phone lag
 
 // ---------------- FLAGS ----------------
 let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
@@ -140,23 +141,25 @@ function drawConfetti(){
 }
 
 // ---------------- HELPERS ----------------
-function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
-  const lines = text.split('\n');  // split by manual line breaks
-  lines.forEach((line, i) => {
-    let words = line.split(' ');
-    let currentLine = '', lineY = y + i * lineHeight; // start y offset for each line
+function getWrappedLines(ctx, text, maxWidth, lineHeight) {
+  const out = [];
+  const lines = text.split('\n');
+  let lineY = 0;
+  lines.forEach((line) => {
+    let words = line.split(' '), currentLine = '';
     for (let n = 0; n < words.length; n++) {
       const testLine = currentLine + words[n] + ' ';
       if (ctx.measureText(testLine).width > maxWidth && n > 0) {
-        ctx.fillText(currentLine, x, lineY);
-        currentLine = words[n] + ' ';
-        lineY += lineHeight;
-      } else {
-        currentLine = testLine;
-      }
+        out.push({ t: currentLine, y: lineY }); currentLine = words[n] + ' '; lineY += lineHeight;
+      } else currentLine = testLine;
     }
-    ctx.fillText(currentLine, x, lineY);
+    out.push({ t: currentLine, y: lineY }); lineY += lineHeight;
   });
+  return out;
+}
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
+  const lines = getWrappedLines(ctx, text, maxWidth, lineHeight);
+  lines.forEach(l => ctx.fillText(l.t, x, y + l.y));
 }
 
 function drawWrappedButtonText(ctx,text,x,y,width,height){
@@ -230,7 +233,7 @@ canvas.addEventListener('click',(e)=>{
 // ---------------- RESTART ----------------
 function restartScene() {
     // Reset character and dialogue
-    charX = -50; // far left start
+    charX = -100; // match start position
     charY = 400;
     moving = false; // wait until start pressed
     walkFrame = 0;
@@ -273,7 +276,7 @@ background.src = 'background.png';
 }
 // ---------------- MAIN LOOP ----------------
 let lastTime = 0;
-const updateInterval = 1 / 24; // 24 FPS cap: less lag on phone, same perceived speed
+const updateInterval = 1 / 20; // 20 FPS cap: less lag on phone, same perceived speed
 let lastBleepTime = 0;
 const bleepMinInterval = 0.06; // min seconds between bleeps (so bleep1 / Raz lines aren't too rapid)
 
@@ -354,12 +357,18 @@ function gameLoop(timestamp){
     }
   }
 
-  // DIALOGUE BOX
+  // DIALOGUE BOX (cache wrapped lines to cut work on phone)
   if((dialogueTriggered && displayedText.length>0) || choiceActive){
+    if(dialogueBoxCacheText !== displayedText){
+      ctx.font='32px font';
+      dialogueBoxCacheText = displayedText;
+      dialogueBoxCacheLines = getWrappedLines(ctx, displayedText, 665, 30);
+    }
     ctx.fillStyle='black'; ctx.fillRect(35,450,730,120);
     ctx.strokeStyle='white'; ctx.lineWidth=5; ctx.strokeRect(35,450,730,120);
     ctx.fillStyle='white'; ctx.font='32px font';
-    drawWrappedText(ctx,displayedText,75,490,665,30);
+    const baseY = 490;
+    for(let i=0;i<dialogueBoxCacheLines.length;i++) ctx.fillText(dialogueBoxCacheLines[i].t, 75, baseY + dialogueBoxCacheLines[i].y);
   }
 
   // CHOICES
