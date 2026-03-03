@@ -56,8 +56,8 @@ const mirror={x:480,y:150,width:140,height:250}, restartButton={x:10,y:10,width:
 const newMirrorScale=0.15, newMirrorCropPercent=0.75, newMirrorXOffset=0, newMirrorYOffset=-10;
 
 // ---------------- CHARACTER ----------------
-let charX=-250,charY=400,speed=1.5,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false;
-let walkFrame=0,frameCount=0,frameDelay=10;
+let charX=-250,charY=400,speed=90,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false; // speed in px/sec
+let walkFrame=0,frameCount=0,frameDelay=0.16; // frameDelay in seconds
 
 // ---------------- SOUNDS ----------------
 const bleep = new Audio('bleep.mp3');
@@ -66,7 +66,7 @@ const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
 
 // ---------------- DIALOGUE ----------------
-let bleepCooldown=10, bleepInterval=8;
+let bleepCooldown=0, bleepInterval=0.06; // seconds between bleeps
 let messages = [
   { text:"* Despite everything, it's \n		still you."},
   { text:"* ..."},
@@ -82,7 +82,7 @@ let messages = [
   { prefix: "* [Raz]: ", text: "But maybe it should be /us/.", sound:bleep1 },
   { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
 ];
-let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=0.3, waitingForClick=false;
+let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=20, waitingForClick=false; // textSpeed in chars/sec
 
 // ---------------- FLAGS ----------------
 let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
@@ -266,7 +266,20 @@ background.src = 'background.png';
     fadeSpeed = 0.01;    // slower fade
 }
 // ---------------- MAIN LOOP ----------------
-function gameLoop(){
+let lastTime = 0;
+const targetFPS = 60;
+const minFrameTime = 1 / targetFPS;
+
+function gameLoop(timestamp){
+  if(!timestamp) timestamp = performance.now();
+  if(!lastTime) lastTime = timestamp;
+  let delta = (timestamp - lastTime) / 1000; // seconds
+  if(delta < minFrameTime){
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+  lastTime = timestamp;
+
   ctx.clearRect(0,0,canvas.width,canvas.height);
   const cw=(moving?walkSprites[walkFrame].width:turnSprite.width)*characterScale;
   const ch=(moving?walkSprites[walkFrame].height:turnSprite.height)*characterScale;
@@ -304,13 +317,13 @@ function gameLoop(){
     if(choiceMade!==null){ displayedText=choiceResponses[choiceMade]; }
     else if(!choiceActive){
       if(textIndex<currentMsg.text.length){
-        textIndex+=textSpeed;
+        textIndex+=textSpeed*delta;
         displayedText = (currentMsg.prefix || "") + currentMsg.text.slice(0, textIndex);
         if(bleepCooldown<=0){
           const soundToPlay = currentMsg.sound||bleep;
           soundToPlay.currentTime=0; soundToPlay.play();
           bleepCooldown = bleepInterval;
-        } else bleepCooldown--;
+        } else bleepCooldown-=delta;
       } else waitingForClick=true;
 
       if(currentMessageIndex===3 && !shakeTriggered && textIndex>=messages[3].text.length){
@@ -353,14 +366,21 @@ function gameLoop(){
 
   // CHARACTER MOVEMENT
   if(moving){
-    if(charX<470){ charX+=speed; frameCount++; if(frameCount>=frameDelay){ walkFrame=(walkFrame+1)%walkSprites.length; frameCount=0; } }
+    if(charX<470){
+      charX+=speed*delta;
+      frameCount+=delta;
+      if(frameCount>=frameDelay){
+        walkFrame=(walkFrame+1)%walkSprites.length;
+        frameCount=0;
+      }
+    }
     else{ moving=false; waitingForClickToStartDialogue=true; }
   }
 }
 
 // IMAGE LOADING
 let imagesLoaded=0; const totalImages=walkSprites.length+4; // +4 because background1 added
-function checkLoaded(){ imagesLoaded++; if(imagesLoaded===totalImages) gameLoop(); }
+function checkLoaded(){ imagesLoaded++; if(imagesLoaded===totalImages) requestAnimationFrame(gameLoop); }
 background.onload=checkLoaded; background1.onload=checkLoaded;
 turnSprite.onload=checkLoaded; reflectionSprite.onload=checkLoaded;
 walkSprites.forEach(img=>img.onload=checkLoaded);
