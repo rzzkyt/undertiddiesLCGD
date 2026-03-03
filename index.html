@@ -66,8 +66,7 @@ const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
 
 // ---------------- DIALOGUE ----------------
-let bleepCooldown=0, bleepInterval=0.08; // seconds between bleeps
-let lastBleepCharIndex=-1; // track where we last played a bleep
+let bleepCooldown=0, bleepInterval=0.08; // (kept for potential future tuning, not strictly needed now)
 let messages = [
   { text:"* Despite everything, it's \n		still you."},
   { text:"* ..."},
@@ -318,23 +317,22 @@ function gameLoop(timestamp){
     if(choiceMade!==null){ displayedText=choiceResponses[choiceMade]; }
     else if(!choiceActive){
       if(textIndex<currentMsg.text.length){
-        textIndex+=textSpeed*delta;
+        const prevIndex = textIndex;
+        textIndex = Math.min(currentMsg.text.length, textIndex + textSpeed*delta);
         displayedText = (currentMsg.prefix || "") + currentMsg.text.slice(0, textIndex);
 
-        // Bleep on some non-space characters with a small cooldown
-        const charIndex = Math.floor(textIndex) - 1;
-        if(charIndex >= 0){
-          const ch = currentMsg.text[charIndex];
-          if(!/\s/.test(ch)){
-            if(bleepCooldown <= 0 && charIndex > lastBleepCharIndex){
-              const soundToPlay = currentMsg.sound||bleep;
-              soundToPlay.currentTime=0; soundToPlay.play();
-              bleepCooldown = bleepInterval;
-              lastBleepCharIndex = charIndex;
-            }
+        // Play a bleep for (almost) every newly revealed non-space character,
+        // even if multiple characters appear in one frame.
+        const start = Math.floor(prevIndex);
+        const end = Math.floor(textIndex);
+        for(let i=start;i<end;i++){
+          const ch = currentMsg.text[i];
+          if(ch && !/\s/.test(ch)){
+            const soundToPlay = currentMsg.sound||bleep;
+            soundToPlay.currentTime=0;
+            soundToPlay.play();
           }
         }
-        if(bleepCooldown > 0) bleepCooldown -= delta;
       } else waitingForClick=true;
 
       if(currentMessageIndex===3 && !shakeTriggered && textIndex>=messages[3].text.length){
