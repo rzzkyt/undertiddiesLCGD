@@ -273,12 +273,17 @@ background.src = 'background.png';
 }
 // ---------------- MAIN LOOP ----------------
 let lastTime = 0;
+const updateInterval = 1 / 30; // 30 FPS cap: same pace on PC and phone, less lag
 
 function gameLoop(timestamp){
   if(!timestamp) timestamp = performance.now();
   if(!lastTime) lastTime = timestamp;
   let delta = (timestamp - lastTime) / 1000; // seconds
   if(delta > 0.1) delta = 0.1; // avoid huge jump if tab was in background
+  if(delta < updateInterval) {
+    requestAnimationFrame(gameLoop);
+    return;
+  }
   lastTime = timestamp;
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -330,6 +335,7 @@ function gameLoop(timestamp){
           const ch = currentMsg.text[i];
           if(ch && !/\s/.test(ch)){
             playBleep(currentMsg.sound||bleep);
+            break; // one bleep per frame = smoother on phone, still sounds good
           }
         }
       } else waitingForClick=true;
