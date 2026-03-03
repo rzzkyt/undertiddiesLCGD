@@ -56,7 +56,7 @@ const mirror={x:480,y:150,width:140,height:250}, restartButton={x:10,y:10,width:
 const newMirrorScale=0.15, newMirrorCropPercent=0.75, newMirrorXOffset=0, newMirrorYOffset=-10;
 
 // ---------------- CHARACTER ----------------
-let charX=-250,charY=400,speed=1.5,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false;
+let charX=-250,charY=400,speed=3,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false;
 let walkFrame=0,frameCount=0,frameDelay=10;
 
 // ---------------- SOUNDS ----------------
@@ -82,7 +82,7 @@ let messages = [
   { prefix: "* [Raz]: ", text: "But maybe it should be /us/.", sound:bleep1 },
   { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
 ];
-let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=0.3, waitingForClick=false;
+let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=0.6, waitingForClick=false;
 
 // ---------------- FLAGS ----------------
 let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
