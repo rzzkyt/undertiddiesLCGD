@@ -1,378 +1,105 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Undertitties</title>
-<style>
-@font-face {
-    font-family: 'font';
-    src: url('font.ttf') format('truetype');
-}
+let lastTimestamp = 0;
 
-body, canvas {
-    font-family: 'font', font;
-}
+function gameLoop(timestamp) {
+    if (!lastTimestamp) lastTimestamp = timestamp;
+    const delta = (timestamp - lastTimestamp) / 16.67; // 1 = ~60fps
+    lastTimestamp = timestamp;
 
-  body { margin: 0; overflow: hidden; background: black; }
-  #gameContainer { position: relative; width: 800px; height: 600px; margin: 0 auto; }
-  canvas { display: block; background: #000; }
-  #startOverlay {
-  transition: opacity 1.5s ease;
-  position: absolute;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background: url('menu.png') no-repeat center center;
-  background-size: cover;
-  z-index:5;
-}
-  #startButton { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:20px 40px; font-size:32px; background:black; color:white; border:3px solid white; cursor:pointer; z-index:10; }
-</style>
-</head>
-<body>
-<div id="gameContainer">
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
-  <div id="startOverlay"></div>
-  <button id="startButton">Press to Start</button>
-</div>
-<script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
-const startButton = document.getElementById("startButton");
-const startOverlay = document.getElementById("startOverlay");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const cw = (moving ? walkSprites[walkFrame].width : turnSprite.width) * characterScale;
+    const ch = (moving ? walkSprites[walkFrame].height : turnSprite.height) * characterScale;
+    const centerX = charX + cw/2;
+    const centerY = charY - ch/2;
 
-// ---------------- IMAGES ----------------
-const background = new Image(); background.src='background.png';
-const background1 = new Image(); background1.src='background1.png'; // NEW BACKGROUND
-const walkSprites = ['walk1.png','walk2.png','walk3.png','walk4.png'].map(src=>{ const img=new Image(); img.src=src; return img; });
-const turnSprite = new Image(); turnSprite.src='turn.png';
-let reflectionSprite = new Image(); reflectionSprite.src='reflection.png';
+    ctx.save();
+    let offsetX=0, offsetY=0;
+    if(shakeDuration>0){ offsetX=(Math.random()*2-1)*shakeMagnitude; offsetY=(Math.random()*2-1)*shakeMagnitude; shakeDuration--; }
+    if(zoomActive){ ctx.translate(canvas.width/2-centerX*zoomScale, canvas.height/2-(centerY-50)*zoomScale); ctx.scale(zoomScale, zoomScale); }
 
-// ---------------- CONFIG ----------------
-const reflectionVerticalOffset=100, reflectionXOffset=8, reflectionAlpha=0.6, characterScale=0.2;
-const mirror={x:480,y:150,width:140,height:250}, restartButton={x:10,y:10,width:80,height:30};
-const newMirrorScale=0.15, newMirrorCropPercent=0.75, newMirrorXOffset=0, newMirrorYOffset=-10;
+    // BACKGROUND
+    ctx.drawImage(background, offsetX, offsetY, canvas.width, canvas.height);
 
-// ---------------- CHARACTER ----------------
-let charX=-250,charY=400,speed=1.5,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false;
-let walkFrame=0,frameCount=0,frameDelay=10;
-
-// ---------------- SOUNDS ----------------
-const bleep = new Audio('bleep.mp3');
-const bleep1 = new Audio('bleep1.mp3'); bleep1.volume=0.4;
-const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
-const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
-
-// ---------------- DIALOGUE ----------------
-let bleepCooldown=2, bleepInterval=4;
-let messages = [
-  { text:"* Despite everything, it's \n		still you."},
-  { text:"* ..."},
-  { text:"* What's that?"},
-  { text:"* POOF!"},
-  { text:"* ¿Qué hace este aquí?"},
-  { prefix: "* [Raz]: ", text: "It's been you for a while.", sound:bleep1 },
-  { prefix: "* [Raz]: ", text: "Despite the distance ...", sound:bleep1 },
-  { prefix: "* [Raz]: ", text: "... and time ...", sound:bleep1 },
-  { prefix: "* [Raz]: ", text: "... and life ...", sound:bleep1 },
-  { prefix: "* [Raz]: ", text: "... and several mistakes made on the way here.", sound:bleep1 },
-  { prefix: "* [Raz]: ", text: "It's still you.", sound:bleep1 },
-  { prefix: "* [Raz]: ", text: "But maybe it should be /us/.", sound:bleep1 },
-  { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
-];
-let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=0.3, waitingForClick=false;
-
-// ---------------- FLAGS ----------------
-let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
-let zoomActive=false, zoomScale=2;
-let choiceActive=false, choiceMade=null;
-const choices=[" * Yes! ♡"," * No way </3"];
-const choiceResponses=["* Now you're bound by contract, this is worse than marriage.","* jajajajaja venga ya hombre x_x"];
-
-// ---------------- FADE-IN ----------------
-let fadeAlpha=1, fadeSpeed=0.02;
-
-// ---------------- MUSIC ----------------
-const bgMusic = new Audio('music.mp3'); bgMusic.loop=true; bgMusic.volume=0.8;
-
-// ---------------- SHAKE ----------------
-let shakeDuration=0, shakeMagnitude=5;
-function screenShake(duration=30,magnitude=8){shakeDuration=duration; shakeMagnitude=magnitude;}
-const shakeSound = new Audio('shake.mp3');
-
-// ---------------- EMOJI CONFETTI ----------------
-const confettiEmojis = ["🌼","🏵️","❤️"];
-let confettiParticles=[];
-const confettiBox = { x1:610, y1:100, x2:740, y2:200 };
-
-function spawnConfetti(amount){
-  for(let i=0;i<amount;i++){
-    const emoji = confettiEmojis[Math.floor(Math.random()*confettiEmojis.length)];
-    confettiParticles.push({
-      x: Math.random()*(confettiBox.x2-confettiBox.x1)+confettiBox.x1,
-      y: Math.random()*(confettiBox.y2-confettiBox.y1)+confettiBox.y1,
-      emoji: emoji,
-      vx: (Math.random()-0.5)*2,
-      vy: Math.random()*2+1,
-      life: Math.random()*60+30
-    });
-  }
-}
-
-function drawConfetti(){
-  for(let i=confettiParticles.length-1;i>=0;i--){
-    const p = confettiParticles[i];
-    ctx.font="32px font";
-    ctx.fillText(p.emoji,p.x,p.y);
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    if(p.life<=0) confettiParticles.splice(i,1);
-  }
-}
-
-// ---------------- HELPERS ----------------
-function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
-  const lines = text.split('\n');  // split by manual line breaks
-  lines.forEach((line, i) => {
-    let words = line.split(' ');
-    let currentLine = '', lineY = y + i * lineHeight; // start y offset for each line
-    for (let n = 0; n < words.length; n++) {
-      const testLine = currentLine + words[n] + ' ';
-      if (ctx.measureText(testLine).width > maxWidth && n > 0) {
-        ctx.fillText(currentLine, x, lineY);
-        currentLine = words[n] + ' ';
-        lineY += lineHeight;
-      } else {
-        currentLine = testLine;
-      }
-    }
-    ctx.fillText(currentLine, x, lineY);
-  });
-}
-
-function drawWrappedButtonText(ctx,text,x,y,width,height){
-  const lineHeight=20; let words=text.split(' '); let line='', lineY=y+18;
-  for(let n=0;n<words.length;n++){
-    const testLine=line+words[n]+' ';
-    if(ctx.measureText(testLine).width>width-10 && n>0){ ctx.fillText(line,x+5,lineY); line=words[n]+' '; lineY+=lineHeight; }
-    else line=testLine;
-  }
-  ctx.fillText(line,x+5,lineY);
-}
-
-// ---------------- CLICK HANDLING ----------------
-canvas.addEventListener('click',(e)=>{
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = (e.clientX-rect.left)*(canvas.width/rect.width);
-  const mouseY = (e.clientY-rect.top)*(canvas.height/rect.height);
-
-  // CONFETTI BOX
-  if(mouseX >= confettiBox.x1 && mouseX <= confettiBox.x2 &&
-     mouseY >= confettiBox.y1 && mouseY <= confettiBox.y2){
-    spawnConfetti(20);
-    return; // DO NOT advance messages
-  }
-
-  // RESTART BUTTON
-  if(mouseX>=restartButton.x && mouseX<=restartButton.x+restartButton.width &&
-     mouseY>=restartButton.y && mouseY<=restartButton.y+restartButton.height){
-    restartScene();
-    return;
-  }
-
-  // CHOICES
-  if(choiceActive){
-    if(mouseX>=200 && mouseX<=350 && mouseY>=520 && mouseY<=580){
-      choiceMade=0;
-      choiceActive=false;
-      waitingForClick=true;
-      // CHANGE BACKGROUND
-      background.src = background1.src;
-	niceSound.currentTime = 0;
-        niceSound.play();  
-      return;
-    }
-    if(mouseX>=450 && mouseX<=600 && mouseY>=520 && mouseY<=580){
-      choiceMade=1;
-      choiceActive=false;
-      waitingForClick=true;
-	wrongSound.currentTime = 0;
-        wrongSound.play();
-      return;
-    }
-  }
-
-  // LAST MESSAGE CHOICE
-  if(lastMessageReadyForChoice && waitingForClick && !choiceActive && choiceMade===null){
-    waitingForClick=false; choiceActive=true;
-  }
-
-  // ADVANCE DIALOGUE
-  if(dialogueTriggered && waitingForClick && !choiceActive && choiceMade===null){
-    currentMessageIndex++;
-    if(currentMessageIndex>=messages.length){ waitingForClick=false; }
-    else { displayedText=""; textIndex=0; }
-  }
-
-  // START DIALOGUE
-  if(waitingForClickToStartDialogue){ waitingForClickToStartDialogue=false; dialogueTriggered=true; waitingForClick=true; }
-});
-
-// ---------------- RESTART ----------------
-function restartScene() {
-    // Reset character and dialogue
-    charX = -50; // far left start
-    charY = 400;
-    moving = false; // wait until start pressed
-    walkFrame = 0;
-    frameCount = 0;
-
-    currentMessageIndex = 0;
-    displayedText = "";
-    textIndex = 0;
-    waitingForClick = false;
-    waitingForClickToStartDialogue = false;
-    dialogueTriggered = false;
-
-    shakeTriggered = false;
-    zoomTriggered = false;
-    zoomActive = false;
-
-    lastMessageReadyForChoice = false;
-    choiceActive = false;
-    choiceMade = null;
-
-    reflectionSprite.src = 'reflection.png';
-    confettiParticles = [];
-background.src = 'background.png';
-
-
-    // Stop music
-    if (bgMusic) {
-        bgMusic.pause();
-        bgMusic.currentTime = 0;
+    // REFLECTION
+    if(charX+cw>mirror.x && charX<mirror.x+mirror.width){
+        const reflectionY=charY-ch-reflectionVerticalOffset;
+        ctx.globalAlpha=reflectionAlpha;
+        let spriteToDraw=moving?walkSprites[walkFrame]:reflectionSprite;
+        let scale=0.14, crop=0.7, xOffset=reflectionXOffset, yOffset=0;
+        if(!moving && shakeTriggered && reflectionSprite.src.includes('new_mirror.png')){
+            scale=newMirrorScale; crop=newMirrorCropPercent; xOffset=reflectionXOffset+newMirrorXOffset; yOffset=newMirrorYOffset;
+        }
+        ctx.drawImage(spriteToDraw,0,0,spriteToDraw.width,spriteToDraw.height*crop,charX+xOffset,reflectionY+yOffset,spriteToDraw.width*scale,spriteToDraw.height*scale*crop);
+        ctx.globalAlpha=1;
     }
 
-    // Show start overlay & button
-    startOverlay.style.display = "block";
-    startOverlay.style.opacity = 1;
-    startButton.style.display = "block";
+    // CHARACTER
+    ctx.drawImage(!moving?turnSprite:walkSprites[walkFrame], charX, charY-ch, cw, ch);
+    ctx.restore();
 
-    // Start a smooth fade-in from black
-    fadeAlpha = 1;       // fully black
-    fadeSpeed = 0.01;    // slower fade
-}
-// ---------------- MAIN LOOP ----------------
-function gameLoop(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  const cw=(moving?walkSprites[walkFrame].width:turnSprite.width)*characterScale;
-  const ch=(moving?walkSprites[walkFrame].height:turnSprite.height)*characterScale;
-  const centerX = charX + cw/2;
-  const centerY = charY - ch/2;
+    // DIALOGUE
+    if(dialogueTriggered && currentMessageIndex<messages.length){
+        const currentMsg = messages[currentMessageIndex];
+        if(choiceMade!==null){ displayedText=choiceResponses[choiceMade]; }
+        else if(!choiceActive){
+            if(textIndex < currentMsg.text.length){
+                textIndex += textSpeed * delta; // scaled by delta
+                displayedText = (currentMsg.prefix || "") + currentMsg.text.slice(0, textIndex);
 
-  ctx.save();
-  let offsetX=0, offsetY=0;
-  if(shakeDuration>0){ offsetX=(Math.random()*2-1)*shakeMagnitude; offsetY=(Math.random()*2-1)*shakeMagnitude; shakeDuration--; }
-  if(zoomActive){ ctx.translate(canvas.width/2-centerX*zoomScale, canvas.height/2-(centerY-50)*zoomScale); ctx.scale(zoomScale, zoomScale); }
+                if(bleepCooldown <= 0){
+                    const soundToPlay = currentMsg.sound||bleep;
+                    soundToPlay.currentTime=0;
+                    soundToPlay.play();
+                    bleepCooldown = bleepInterval;
+                } else bleepCooldown -= delta;
+            } else waitingForClick=true;
 
-  // BACKGROUND
-  ctx.drawImage(background, offsetX, offsetY, canvas.width, canvas.height);
-
-  // REFLECTION
-  if(charX+cw>mirror.x && charX<mirror.x+mirror.width){
-    const reflectionY=charY-ch-reflectionVerticalOffset;
-    ctx.globalAlpha=reflectionAlpha;
-    let spriteToDraw=moving?walkSprites[walkFrame]:reflectionSprite;
-    let scale=0.14, crop=0.7, xOffset=reflectionXOffset, yOffset=0;
-    if(!moving && shakeTriggered && reflectionSprite.src.includes('new_mirror.png')){
-      scale=newMirrorScale; crop=newMirrorCropPercent; xOffset=reflectionXOffset+newMirrorXOffset; yOffset=newMirrorYOffset;
+            if(currentMessageIndex===3 && !shakeTriggered && textIndex>=messages[3].text.length){
+                shakeTriggered=true; screenShake(15,6); reflectionSprite.src='new_mirror.png';
+                shakeSound.currentTime=0; shakeSound.play();
+            }
+            if(currentMessageIndex===4 && !zoomTriggered){ zoomTriggered=true; zoomActive=true; }
+            if(currentMessageIndex===messages.length-1 && !choiceActive) lastMessageReadyForChoice=true;
+        }
     }
-    ctx.drawImage(spriteToDraw,0,0,spriteToDraw.width,spriteToDraw.height*crop,charX+xOffset,reflectionY+yOffset,spriteToDraw.width*scale,spriteToDraw.height*scale*crop);
-    ctx.globalAlpha=1;
-  }
 
-  // CHARACTER
-  ctx.drawImage(!moving?turnSprite:walkSprites[walkFrame], charX, charY-ch, cw, ch);
-  ctx.restore();
-
-  // DIALOGUE
-  if(dialogueTriggered && currentMessageIndex<messages.length){
-    const currentMsg = messages[currentMessageIndex];
-    if(choiceMade!==null){ displayedText=choiceResponses[choiceMade]; }
-    else if(!choiceActive){
-      if(textIndex<currentMsg.text.length){
-        textIndex+=textSpeed;
-        displayedText = (currentMsg.prefix || "") + currentMsg.text.slice(0, textIndex);
-        if(bleepCooldown<=0){
-          const soundToPlay = currentMsg.sound||bleep;
-          soundToPlay.currentTime=0; soundToPlay.play();
-          bleepCooldown = bleepInterval;
-        } else bleepCooldown--;
-      } else waitingForClick=true;
-
-      if(currentMessageIndex===3 && !shakeTriggered && textIndex>=messages[3].text.length){
-        shakeTriggered=true; screenShake(15,6); reflectionSprite.src='new_mirror.png';
-        shakeSound.currentTime=0; shakeSound.play();
-      }
-      if(currentMessageIndex===4 && !zoomTriggered){ zoomTriggered=true; zoomActive=true; }
-      if(currentMessageIndex===messages.length-1 && !choiceActive) lastMessageReadyForChoice=true;
+    // DIALOGUE BOX
+    if((dialogueTriggered && displayedText.length>0) || choiceActive){
+        ctx.fillStyle='black'; ctx.fillRect(35,450,730,120);
+        ctx.strokeStyle='white'; ctx.lineWidth=5; ctx.strokeRect(35,450,730,120);
+        ctx.fillStyle='white'; ctx.font='32px font';
+        drawWrappedText(ctx,displayedText,75,490,665,30);
     }
-  }
 
-  // DIALOGUE BOX
-  if((dialogueTriggered && displayedText.length>0) || choiceActive){
-    ctx.fillStyle='black'; ctx.fillRect(35,450,730,120);
-    ctx.strokeStyle='white'; ctx.lineWidth=5; ctx.strokeRect(35,450,730,120);
-    ctx.fillStyle='white'; ctx.font='32px font';
-    drawWrappedText(ctx,displayedText,75,490,665,30);
-  }
+    // CHOICES
+    if(choiceActive){
+        ctx.fillStyle='black'; ctx.fillRect(160,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(160,515,230,45);
+        ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[0],160,530,400,40);
+        ctx.fillStyle='black'; ctx.fillRect(410,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(410,515,230,45);
+        ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[1],410,530,400,40);
+    }
 
-  // CHOICES
-  if(choiceActive){
-    ctx.fillStyle='black'; ctx.fillRect(160,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(160,515,230,45);
-    ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[0],160,530,400,40);
-    ctx.fillStyle='black'; ctx.fillRect(410,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(410,515,230,45);
-    ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[1],410,530,400,40);
-  }
+    // RESTART
+    ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(restartButton.x,restartButton.y,restartButton.width,restartButton.height);
+    ctx.strokeStyle='white'; ctx.lineWidth=1; ctx.strokeRect(restartButton.x,restartButton.y,restartButton.width,restartButton.height);
+    ctx.fillStyle='white'; ctx.font='16px font'; ctx.fillText("Restart",restartButton.x+10,restartButton.y+20);
 
-  // RESTART
-  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(restartButton.x,restartButton.y,restartButton.width,restartButton.height);
-  ctx.strokeStyle='white'; ctx.lineWidth=1; ctx.strokeRect(restartButton.x,restartButton.y,restartButton.width,restartButton.height);
-  ctx.fillStyle='white'; ctx.font='16px font'; ctx.fillText("Restart",restartButton.x+10,restartButton.y+20);
+    // CONFETTI
+    drawConfetti();
 
-  // CONFETTI
-  drawConfetti();
+    // FADE-IN
+    if(fadeAlpha>0){ ctx.fillStyle=`rgba(0,0,0,${fadeAlpha})`; ctx.fillRect(0,0,canvas.width,canvas.height); fadeAlpha-=fadeSpeed; if(fadeAlpha<0) fadeAlpha=0; }
 
-  // FADE-IN
-  if(fadeAlpha>0){ ctx.fillStyle=`rgba(0,0,0,${fadeAlpha})`; ctx.fillRect(0,0,canvas.width,canvas.height); fadeAlpha-=fadeSpeed; if(fadeAlpha<0) fadeAlpha=0; }
+    requestAnimationFrame(gameLoop);
 
-  requestAnimationFrame(gameLoop);
-
-  // CHARACTER MOVEMENT
-  if(moving){
-    if(charX<470){ charX+=speed; frameCount++; if(frameCount>=frameDelay){ walkFrame=(walkFrame+1)%walkSprites.length; frameCount=0; } }
-    else{ moving=false; waitingForClickToStartDialogue=true; }
-  }
+    // CHARACTER MOVEMENT
+    if(moving){
+        if(charX < 470){
+            charX += speed * delta; // scale by delta
+            frameCount += delta;
+            if(frameCount >= frameDelay){
+                walkFrame = (walkFrame + 1) % walkSprites.length;
+                frameCount = 0;
+            }
+        } else { moving = false; waitingForClickToStartDialogue = true; }
+    }
 }
-
-// IMAGE LOADING
-let imagesLoaded=0; const totalImages=walkSprites.length+4; // +4 because background1 added
-function checkLoaded(){ imagesLoaded++; if(imagesLoaded===totalImages) gameLoop(); }
-background.onload=checkLoaded; background1.onload=checkLoaded;
-turnSprite.onload=checkLoaded; reflectionSprite.onload=checkLoaded;
-walkSprites.forEach(img=>img.onload=checkLoaded);
-
-// START BUTTON
-startButton.addEventListener('click',()=>{
-  moving=true;
-  startOverlay.style.opacity=0;
-  startButton.style.display="none";
-  setTimeout(()=>{ startOverlay.style.display="none"; },1500);
-  bgMusic.play();
-});
-</script>
-</body>
-</html>
