@@ -64,13 +64,11 @@ const bleep = new Audio('bleep.mp3');
 const bleep1 = new Audio('bleep1.mp3'); bleep1.volume=0.4;
 const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
-
-// Create short-lived clones so rapid bleeps work on mobile
-function playBleepSound(base){
-  const clone = base.cloneNode();
-  clone.volume = base.volume;
-  // fire-and-forget; mobile is happier with distinct nodes
-  clone.play();
+// Clone and play so mobile hears each bleep (same Audio element gets ignored when rapid)
+function playBleep(sound) {
+  const c = sound.cloneNode();
+  c.volume = sound.volume;
+  c.play();
 }
 
 // ---------------- DIALOGUE ----------------
@@ -275,17 +273,12 @@ background.src = 'background.png';
 }
 // ---------------- MAIN LOOP ----------------
 let lastTime = 0;
-const targetFPS = 60;
-const minFrameTime = 1 / targetFPS;
 
 function gameLoop(timestamp){
   if(!timestamp) timestamp = performance.now();
   if(!lastTime) lastTime = timestamp;
   let delta = (timestamp - lastTime) / 1000; // seconds
-  if(delta < minFrameTime){
-    requestAnimationFrame(gameLoop);
-    return;
-  }
+  if(delta > 0.1) delta = 0.1; // avoid huge jump if tab was in background
   lastTime = timestamp;
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -336,8 +329,7 @@ function gameLoop(timestamp){
         for(let i=start;i<end;i++){
           const ch = currentMsg.text[i];
           if(ch && !/\s/.test(ch)){
-            const soundToPlay = currentMsg.sound||bleep;
-            playBleepSound(soundToPlay);
+            playBleep(currentMsg.sound||bleep);
           }
         }
       } else waitingForClick=true;
