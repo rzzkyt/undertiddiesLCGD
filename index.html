@@ -56,8 +56,8 @@ const mirror={x:480,y:150,width:140,height:250}, restartButton={x:10,y:10,width:
 const newMirrorScale=0.15, newMirrorCropPercent=0.75, newMirrorXOffset=0, newMirrorYOffset=-10;
 
 // ---------------- CHARACTER ----------------
-let charX=-250,charY=400,speed=90,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false; // speed in px/sec
-let walkFrame=0,frameCount=0,frameDelay=0.16; // frameDelay in seconds
+let charX=-250,charY=400,speed=150,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false; // speed in px/sec
+let walkFrame=0,frameCount=0,frameDelay=0.1; // frameDelay in seconds (animation)
 
 // ---------------- SOUNDS ----------------
 const bleep = new Audio('bleep.mp3');
@@ -66,7 +66,8 @@ const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
 
 // ---------------- DIALOGUE ----------------
-let bleepCooldown=0, bleepInterval=0.06; // seconds between bleeps
+let bleepCooldown=0, bleepInterval=0.08; // seconds between bleeps
+let lastBleepCharIndex=-1; // track where we last played a bleep
 let messages = [
   { text:"* Despite everything, it's \n		still you."},
   { text:"* ..."},
@@ -82,7 +83,7 @@ let messages = [
   { prefix: "* [Raz]: ", text: "But maybe it should be /us/.", sound:bleep1 },
   { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
 ];
-let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=20, waitingForClick=false; // textSpeed in chars/sec
+let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=35, waitingForClick=false; // textSpeed in chars/sec
 
 // ---------------- FLAGS ----------------
 let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
@@ -319,11 +320,21 @@ function gameLoop(timestamp){
       if(textIndex<currentMsg.text.length){
         textIndex+=textSpeed*delta;
         displayedText = (currentMsg.prefix || "") + currentMsg.text.slice(0, textIndex);
-        if(bleepCooldown<=0){
-          const soundToPlay = currentMsg.sound||bleep;
-          soundToPlay.currentTime=0; soundToPlay.play();
-          bleepCooldown = bleepInterval;
-        } else bleepCooldown-=delta;
+
+        // Bleep on some non-space characters with a small cooldown
+        const charIndex = Math.floor(textIndex) - 1;
+        if(charIndex >= 0){
+          const ch = currentMsg.text[charIndex];
+          if(!/\s/.test(ch)){
+            if(bleepCooldown <= 0 && charIndex > lastBleepCharIndex){
+              const soundToPlay = currentMsg.sound||bleep;
+              soundToPlay.currentTime=0; soundToPlay.play();
+              bleepCooldown = bleepInterval;
+              lastBleepCharIndex = charIndex;
+            }
+          }
+        }
+        if(bleepCooldown > 0) bleepCooldown -= delta;
       } else waitingForClick=true;
 
       if(currentMessageIndex===3 && !shakeTriggered && textIndex>=messages[3].text.length){
