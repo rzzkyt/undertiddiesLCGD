@@ -10,7 +10,7 @@
 }
 
 body, canvas {
-    font-family: 'font', font;
+    font-family: 'font', monospace;
 }
 
 body { margin: 0; overflow: hidden; background: black; }
@@ -19,15 +19,18 @@ canvas { display: block; background: #000; }
 #startOverlay {
   transition: opacity 1.5s ease;
   position: absolute;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
+  top:0; left:0; width:100%; height:100%;
   background: url('menu.png') no-repeat center center;
   background-size: cover;
   z-index:5;
 }
-#startButton { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:20px 40px; font-size:32px; background:black; color:white; border:3px solid white; cursor:pointer; z-index:10; }
+#startButton {
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  padding:20px 40px; font-size:32px;
+  background:black; color:white; border:3px solid white;
+  cursor:pointer; z-index:10;
+}
 </style>
 </head>
 <body>
@@ -40,13 +43,16 @@ canvas { display: block; background: #000; }
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+
 const startButton = document.getElementById("startButton");
 const startOverlay = document.getElementById("startOverlay");
 
 // ---------------- IMAGES ----------------
 const background = new Image(); background.src='background.png';
-const background1 = new Image(); background1.src='background1.png'; // NEW BACKGROUND
-const walkSprites = ['walk1.png','walk2.png','walk3.png','walk4.png'].map(src=>{ const img=new Image(); img.src=src; return img; });
+const background1 = new Image(); background1.src='background1.png';
+const walkSprites = ['walk1.png','walk2.png','walk3.png','walk4.png'].map(src=>{
+    const img = new Image(); img.src=src; return img;
+});
 const turnSprite = new Image(); turnSprite.src='turn.png';
 let reflectionSprite = new Image(); reflectionSprite.src='reflection.png';
 
@@ -56,8 +62,8 @@ const mirror={x:480,y:150,width:140,height:250}, restartButton={x:10,y:10,width:
 const newMirrorScale=0.15, newMirrorCropPercent=0.75, newMirrorXOffset=0, newMirrorYOffset=-10;
 
 // ---------------- CHARACTER ----------------
-let charX=-250,charY=400,speed=3,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false;
-let walkFrame=0,frameCount=0,frameDelay=10;
+let charX=-250,charY=400,speed=2,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false;
+let walkFrame=0,frameCount=0,frameDelay=6;
 
 // ---------------- SOUNDS ----------------
 const bleep = new Audio('bleep.mp3');
@@ -66,13 +72,12 @@ const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
 
 // ---------------- DIALOGUE ----------------
-let bleepCooldown=2, bleepInterval=4;
+let bleepCooldown=0, bleepInterval=4;
 let messages = [
-  { text:"* Despite everything, it's \n		still you."},
+  { text:"* Despite everything, it's \nstill you."},
   { text:"* ..."},
   { text:"* What's that?"},
   { text:"* POOF!"},  
-  { text:"* ¿Qué hace este aquí?"},
   { prefix: "* [Raz]: ", text: "It's been you for a while.", sound:bleep1 },
   { prefix: "* [Raz]: ", text: "Despite the distance ...", sound:bleep1 },
   { prefix: "* [Raz]: ", text: "... and time ...", sound:bleep1 },
@@ -82,7 +87,7 @@ let messages = [
   { prefix: "* [Raz]: ", text: "But maybe it should be /us/.", sound:bleep1 },
   { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
 ];
-let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=0.6, waitingForClick=false;
+let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=0.5, waitingForClick=false;
 
 // ---------------- FLAGS ----------------
 let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
@@ -91,7 +96,7 @@ let choiceActive=false, choiceMade=null;
 const choices=[" * Yes! ♡"," * No way </3"];
 const choiceResponses=["* Now you're bound by contract, this is worse than marriage.","* jajajajaja venga ya hombre x_x"];
 
-// ---------------- FADE-IN ----------------
+// ---------------- FADE ----------------
 let fadeAlpha=1, fadeSpeed=0.02;
 
 // ---------------- MUSIC ----------------
@@ -104,52 +109,40 @@ const shakeSound = new Audio('shake.mp3');
 
 // ---------------- EMOJI CONFETTI ----------------
 const confettiEmojis = ["🌼","🏵️","❤️"];
-let confettiParticles=[]; const confettiBox = { x1:610, y1:100, x2:740, y2:200 };
+let confettiParticles=[]; const confettiBox={x1:610,y1:100,x2:740,y2:200};
 function spawnConfetti(amount){
   for(let i=0;i<amount;i++){
     const emoji = confettiEmojis[Math.floor(Math.random()*confettiEmojis.length)];
-    confettiParticles.push({
-      x: Math.random()*(confettiBox.x2-confettiBox.x1)+confettiBox.x1,
-      y: Math.random()*(confettiBox.y2-confettiBox.y1)+confettiBox.y1,
-      emoji: emoji,
-      vx: (Math.random()-0.5)*2,
-      vy: Math.random()*2+1,
-      life: Math.random()*60+30
-    });
+    confettiParticles.push({x: Math.random()*(confettiBox.x2-confettiBox.x1)+confettiBox.x1,
+                           y: Math.random()*(confettiBox.y2-confettiBox.y1)+confettiBox.y1,
+                           emoji: emoji, vx:(Math.random()-0.5)*2, vy:Math.random()*2+1, life:Math.random()*60+30});
   }
 }
 function drawConfetti(){
   for(let i=confettiParticles.length-1;i>=0;i--){
     const p = confettiParticles[i];
-    ctx.font="32px font";
-    ctx.fillText(p.emoji,p.x,p.y);
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
+    ctx.font="32px font"; ctx.fillText(p.emoji,p.x,p.y);
+    p.x += p.vx; p.y += p.vy; p.life--;
     if(p.life<=0) confettiParticles.splice(i,1);
   }
 }
 
 // ---------------- HELPERS ----------------
-function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
-  const lines = text.split('\n');
-  lines.forEach((line, i) => {
-    let words = line.split(' ');
-    let currentLine = '', lineY = y + i * lineHeight;
-    for (let n = 0; n < words.length; n++) {
-      const testLine = currentLine + words[n] + ' ';
-      if (ctx.measureText(testLine).width > maxWidth && n > 0) {
-        ctx.fillText(currentLine, x, lineY);
-        currentLine = words[n] + ' ';
-        lineY += lineHeight;
-      } else currentLine = testLine;
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight){
+  const lines=text.split('\n');
+  lines.forEach((line,i)=>{
+    let words=line.split(' '), currentLine='', lineY=y+i*lineHeight;
+    for(let n=0;n<words.length;n++){
+      const testLine=currentLine+words[n]+' ';
+      if(ctx.measureText(testLine).width>maxWidth && n>0){ ctx.fillText(currentLine,x,lineY); currentLine=words[n]+' '; lineY+=lineHeight; }
+      else currentLine=testLine;
     }
-    ctx.fillText(currentLine, x, lineY);
+    ctx.fillText(currentLine,x,lineY);
   });
 }
 
 function drawWrappedButtonText(ctx,text,x,y,width,height){
-  const lineHeight=20; let words=text.split(' '); let line='', lineY=y+18;
+  const lineHeight=20, words=text.split(' '); let line='', lineY=y+18;
   for(let n=0;n<words.length;n++){
     const testLine=line+words[n]+' ';
     if(ctx.measureText(testLine).width>width-10 && n>0){ ctx.fillText(line,x+5,lineY); line=words[n]+' '; lineY+=lineHeight; }
@@ -158,22 +151,24 @@ function drawWrappedButtonText(ctx,text,x,y,width,height){
   ctx.fillText(line,x+5,lineY);
 }
 
-// ---------------- CLICK HANDLING ----------------
-canvas.addEventListener('click',(e)=>{
+// ---------------- CLICK ----------------
+canvas.addEventListener('click', e=>{
   const rect = canvas.getBoundingClientRect();
   const mouseX = (e.clientX-rect.left)*(canvas.width/rect.width);
   const mouseY = (e.clientY-rect.top)*(canvas.height/rect.height);
 
-  if(mouseX >= confettiBox.x1 && mouseX <= confettiBox.x2 &&
-     mouseY >= confettiBox.y1 && mouseY <= confettiBox.y2){
+  // CONFETTI
+  if(mouseX>=confettiBox.x1 && mouseX<=confettiBox.x2 && mouseY>=confettiBox.y1 && mouseY<=confettiBox.y2){
     spawnConfetti(20); return;
   }
 
+  // RESTART
   if(mouseX>=restartButton.x && mouseX<=restartButton.x+restartButton.width &&
      mouseY>=restartButton.y && mouseY<=restartButton.y+restartButton.height){
-    restartScene(); return;
+       restartScene(); return;
   }
 
+  // CHOICES
   if(choiceActive){
     if(mouseX>=200 && mouseX<=350 && mouseY>=520 && mouseY<=580){
       choiceMade=0; choiceActive=false; waitingForClick=true;
@@ -185,40 +180,38 @@ canvas.addEventListener('click',(e)=>{
     }
   }
 
+  // LAST MESSAGE CHOICE
   if(lastMessageReadyForChoice && waitingForClick && !choiceActive && choiceMade===null){
     waitingForClick=false; choiceActive=true;
   }
 
+  // ADVANCE DIALOGUE
   if(dialogueTriggered && waitingForClick && !choiceActive && choiceMade===null){
     currentMessageIndex++;
     if(currentMessageIndex>=messages.length){ waitingForClick=false; }
     else { displayedText=""; textIndex=0; }
   }
 
+  // START DIALOGUE
   if(waitingForClickToStartDialogue){ waitingForClickToStartDialogue=false; dialogueTriggered=true; waitingForClick=true; }
 });
 
 // ---------------- RESTART ----------------
-function restartScene() {
-    charX = -50; charY = 400; moving = false; walkFrame = 0; frameCount = 0;
-    currentMessageIndex = 0; displayedText = ""; textIndex = 0;
-    waitingForClick = false; waitingForClickToStartDialogue = false; dialogueTriggered = false;
-    shakeTriggered = false; zoomTriggered = false; zoomActive = false;
-    lastMessageReadyForChoice = false; choiceActive = false; choiceMade = null;
-    reflectionSprite.src = 'reflection.png'; confettiParticles = [];
-    background.src = 'background.png';
-    if(bgMusic){ bgMusic.pause(); bgMusic.currentTime=0; }
-    startOverlay.style.display = "block"; startOverlay.style.opacity = 1; startButton.style.display = "block";
-    fadeAlpha = 1; fadeSpeed = 0.01;
+function restartScene(){
+  charX=-250; charY=400; moving=false; walkFrame=0; frameCount=0;
+  currentMessageIndex=0; displayedText=""; textIndex=0; waitingForClick=false;
+  waitingForClickToStartDialogue=false; dialogueTriggered=false;
+  shakeTriggered=false; zoomTriggered=false; zoomActive=false;
+  lastMessageReadyForChoice=false; choiceActive=false; choiceMade=null;
+  reflectionSprite.src='reflection.png'; confettiParticles=[]; background.src='background.png';
+  if(bgMusic){ bgMusic.pause(); bgMusic.currentTime=0; }
+  startOverlay.style.display="block"; startOverlay.style.opacity=1;
+  startButton.style.display="block";
+  fadeAlpha=1; fadeSpeed=0.01;
 }
 
 // ---------------- MAIN LOOP ----------------
-let lastTimestamp = 0;
-function gameLoop(timestamp){
-  if(!lastTimestamp) lastTimestamp = timestamp;
-  const delta = (timestamp - lastTimestamp)/16.67; 
-  lastTimestamp = timestamp;
-
+function gameLoop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   const cw=(moving?walkSprites[walkFrame].width:turnSprite.width)*characterScale;
   const ch=(moving?walkSprites[walkFrame].height:turnSprite.height)*characterScale;
@@ -230,8 +223,10 @@ function gameLoop(timestamp){
   if(shakeDuration>0){ offsetX=(Math.random()*2-1)*shakeMagnitude; offsetY=(Math.random()*2-1)*shakeMagnitude; shakeDuration--; }
   if(zoomActive){ ctx.translate(canvas.width/2-centerX*zoomScale, canvas.height/2-(centerY-50)*zoomScale); ctx.scale(zoomScale, zoomScale); }
 
+  // BACKGROUND
   ctx.drawImage(background, offsetX, offsetY, canvas.width, canvas.height);
 
+  // REFLECTION
   if(charX+cw>mirror.x && charX<mirror.x+mirror.width){
     const reflectionY=charY-ch-reflectionVerticalOffset;
     ctx.globalAlpha=reflectionAlpha;
@@ -244,6 +239,7 @@ function gameLoop(timestamp){
     ctx.globalAlpha=1;
   }
 
+  // CHARACTER
   ctx.drawImage(!moving?turnSprite:walkSprites[walkFrame], charX, charY-ch, cw, ch);
   ctx.restore();
 
@@ -252,15 +248,14 @@ function gameLoop(timestamp){
     const currentMsg = messages[currentMessageIndex];
     if(choiceMade!==null){ displayedText=choiceResponses[choiceMade]; }
     else if(!choiceActive){
-      if(textIndex < currentMsg.text.length){
-        textIndex += textSpeed * delta;
+      if(textIndex<currentMsg.text.length){
+        textIndex += textSpeed;
         displayedText = (currentMsg.prefix||"") + currentMsg.text.slice(0,textIndex);
-
-        if(bleepCooldown <=0){
+        if(bleepCooldown<=0){
           const soundToPlay = currentMsg.sound||bleep;
           soundToPlay.currentTime=0; soundToPlay.play();
           bleepCooldown = bleepInterval;
-        } else bleepCooldown -= delta;
+        } else bleepCooldown--;
       } else waitingForClick=true;
 
       if(currentMessageIndex===3 && !shakeTriggered && textIndex>=messages[3].text.length){
@@ -282,48 +277,47 @@ function gameLoop(timestamp){
 
   // CHOICES
   if(choiceActive){
-    ctx.fillStyle='black'; ctx.fillRect(160,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(160,515,230,45);
-    ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[0],160,530,400,40);
-    ctx.fillStyle='black'; ctx.fillRect(410,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(410,515,230,45);
-    ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[1],410,530,400,40);
+    ctx.fillStyle='black'; ctx.fillRect(160,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(160,515,280,45);
+    ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[0],160,530,280,45);
+    ctx.fillStyle='black'; ctx.fillRect(410,515,280,45); ctx.strokeStyle='white'; ctx.strokeRect(410,515,280,45);
+    ctx.fillStyle='white'; drawWrappedButtonText(ctx,choices[1],410,530,280,45);
   }
 
+  // RESTART
   ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(restartButton.x,restartButton.y,restartButton.width,restartButton.height);
-  ctx.strokeStyle='white'; ctx.lineWidth=1; ctx.strokeRect(restartButton.x,restartButton.y,restartButton.width,restartButton.height);
+  ctx.strokeStyle='white'; ctx.strokeRect(restartButton.x,restartButton.y,restartButton.width,restartButton.height);
   ctx.fillStyle='white'; ctx.font='16px font'; ctx.fillText("Restart",restartButton.x+10,restartButton.y+20);
 
+  // CONFETTI
   drawConfetti();
 
+  // FADE-IN
   if(fadeAlpha>0){ ctx.fillStyle=`rgba(0,0,0,${fadeAlpha})`; ctx.fillRect(0,0,canvas.width,canvas.height); fadeAlpha-=fadeSpeed; if(fadeAlpha<0) fadeAlpha=0; }
 
   requestAnimationFrame(gameLoop);
 
+  // CHARACTER MOVEMENT
   if(moving){
-    if(charX < 470){
-      charX += speed*delta;
-      frameCount += delta;
-      if(frameCount >= frameDelay){
-        walkFrame = (walkFrame +1) % walkSprites.length;
-        frameCount =0;
-      }
-    } else moving = false; waitingForClickToStartDialogue = true;
+    if(charX<470){ charX+=speed; frameCount++; if(frameCount>=frameDelay){ walkFrame=(walkFrame+1)%walkSprites.length; frameCount=0; } }
+    else{ moving=false; waitingForClickToStartDialogue=true; }
   }
 }
 
-// IMAGE LOADING
+// ---------------- IMAGE LOADING ----------------
 let imagesLoaded=0; const totalImages=walkSprites.length+4;
 function checkLoaded(){ imagesLoaded++; if(imagesLoaded===totalImages) gameLoop(); }
 background.onload=checkLoaded; background1.onload=checkLoaded;
 turnSprite.onload=checkLoaded; reflectionSprite.onload=checkLoaded;
 walkSprites.forEach(img=>img.onload=checkLoaded);
 
-// START BUTTON
+// ---------------- START BUTTON ----------------
 startButton.addEventListener('click',()=>{
   moving=true;
+  startOverlay.style.transition='opacity 1.5s ease';
   startOverlay.style.opacity=0;
-  startButton.style.display="none";
-  setTimeout(()=>{ startOverlay.style.display="none"; },1500);
+  startButton.style.display='none';
   bgMusic.play();
+  setTimeout(()=>{ startOverlay.style.display='none'; waitingForClickToStartDialogue=true; },1500);
 });
 </script>
 </body>
