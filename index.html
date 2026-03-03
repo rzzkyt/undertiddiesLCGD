@@ -56,12 +56,12 @@ const mirror={x:480,y:150,width:140,height:250}, restartButton={x:10,y:10,width:
 const newMirrorScale=0.15, newMirrorCropPercent=0.75, newMirrorXOffset=0, newMirrorYOffset=-10;
 
 // ---------------- CHARACTER ----------------
-let charX=-100,charY=400,speed=200,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false; // start -100, speed px/sec
+let charX=-200,charY=400,speed=200,moving=false,dialogueTriggered=false,waitingForClickToStartDialogue=false; // start -200, speed px/sec
 let walkFrame=0,frameCount=0,frameDelay=0.1; // frameDelay in seconds (animation)
 
 // ---------------- SOUNDS ----------------
 const bleep = new Audio('bleep.mp3');
-const bleep1 = new Audio('bleep1.mp3'); bleep1.volume=0.4;
+const bleep1 = new Audio('bleep1.mp3'); bleep1.volume=0.55;
 const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
 // Reuse a small pool of clones so we don't allocate during typewriter (reduces phone lag)
@@ -113,7 +113,7 @@ let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
 let zoomActive=false, zoomScale=2;
 let choiceActive=false, choiceMade=null;
 const choices=[" * Yes! ♡"," * No way </3"];
-const choiceResponses=["* Now you're bound by contract, this is worse than marriage.","* jajajajaja venga ya hombre x_x"];
+const choiceResponses=["* Now you're bound by contract, this is worse than marriage.","* jajajajaja venga ya hombre x_x la puta broma de los chinos alternativos será verda"];
 
 // ---------------- FADE-IN ----------------
 let fadeAlpha=1, fadeSpeed=0.02;
@@ -250,7 +250,7 @@ canvas.addEventListener('click',(e)=>{
 // ---------------- RESTART ----------------
 function restartScene() {
     // Reset character and dialogue
-    charX = -100; // match start position
+    charX = -200; // match start position
     charY = 400;
     moving = false; // wait until start pressed
     walkFrame = 0;
