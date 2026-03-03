@@ -273,7 +273,9 @@ background.src = 'background.png';
 }
 // ---------------- MAIN LOOP ----------------
 let lastTime = 0;
-const updateInterval = 1 / 30; // 30 FPS cap: same pace on PC and phone, less lag
+const updateInterval = 1 / 24; // 24 FPS cap: less lag on phone, same perceived speed
+let lastBleepTime = 0;
+const bleepMinInterval = 0.06; // min seconds between bleeps (so bleep1 / Raz lines aren't too rapid)
 
 function gameLoop(timestamp){
   if(!timestamp) timestamp = performance.now();
@@ -331,11 +333,14 @@ function gameLoop(timestamp){
         // even if multiple characters appear in one frame.
         const start = Math.floor(prevIndex);
         const end = Math.floor(textIndex);
-        for(let i=start;i<end;i++){
-          const ch = currentMsg.text[i];
-          if(ch && !/\s/.test(ch)){
-            playBleep(currentMsg.sound||bleep);
-            break; // one bleep per frame = smoother on phone, still sounds good
+        if((timestamp - lastBleepTime) >= bleepMinInterval) {
+          for(let i=start;i<end;i++){
+            const ch = currentMsg.text[i];
+            if(ch && !/\s/.test(ch)){
+              playBleep(currentMsg.sound||bleep);
+              lastBleepTime = timestamp;
+              break;
+            }
           }
         }
       } else waitingForClick=true;
