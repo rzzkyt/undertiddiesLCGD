@@ -64,12 +64,26 @@ const bleep = new Audio('bleep.mp3');
 const bleep1 = new Audio('bleep1.mp3'); bleep1.volume=0.4;
 const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
-// Clone and play so mobile hears each bleep (same Audio element gets ignored when rapid)
-function playBleep(sound) {
-  const c = sound.cloneNode();
-  c.volume = sound.volume;
-  c.play();
+// Reuse a small pool of clones so we don't allocate during typewriter (reduces phone lag)
+const BLEEP_POOL_SIZE = 4;
+const bleepPool = [], bleep1Pool = [];
+let bleepPoolIdx = 0, bleep1PoolIdx = 0;
+function initBleepPools() {
+  for (let i = 0; i < BLEEP_POOL_SIZE; i++) {
+    const c = bleep.cloneNode(); c.volume = bleep.volume; bleepPool.push(c);
+    const d = bleep1.cloneNode(); d.volume = bleep1.volume; bleep1Pool.push(d);
+  }
 }
+function playBleep(sound) {
+  const pool = sound === bleep1 ? bleep1Pool : bleepPool;
+  const idx = sound === bleep1 ? bleep1PoolIdx : bleepPoolIdx;
+  const c = pool[idx % BLEEP_POOL_SIZE];
+  c.currentTime = 0;
+  c.play();
+  if (sound === bleep1) bleep1PoolIdx = (idx + 1) % BLEEP_POOL_SIZE;
+  else bleepPoolIdx = (idx + 1) % BLEEP_POOL_SIZE;
+}
+initBleepPools();
 
 // ---------------- DIALOGUE ----------------
 let bleepCooldown=0, bleepInterval=0.08; // (kept for potential future tuning, not strictly needed now)
@@ -276,9 +290,9 @@ background.src = 'background.png';
 }
 // ---------------- MAIN LOOP ----------------
 let lastTime = 0;
-const updateInterval = 1 / 20; // 20 FPS cap: less lag on phone, same perceived speed
+const updateInterval = 1 / 30; // 30 FPS cap
 let lastBleepTime = 0;
-const bleepMinInterval = 0.06; // min seconds between bleeps (so bleep1 / Raz lines aren't too rapid)
+const bleepMinInterval = 0.08; // min seconds between bleeps (fewer = less lag, still in sync)
 
 function gameLoop(timestamp){
   if(!timestamp) timestamp = performance.now();
