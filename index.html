@@ -28,11 +28,32 @@ body, canvas {
   z-index:5;
 }
   #startButton { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:20px 40px; font-size:32px; background:black; color:white; border:3px solid white; cursor:pointer; z-index:10; }
+  #dialogueOverlay {
+    display: none;
+    position: absolute;
+    left: 35px;
+    top: 450px;
+    width: 730px;
+    height: 120px;
+    box-sizing: border-box;
+    padding: 20px 40px;
+    background: black;
+    border: 5px solid white;
+    color: white;
+    font: 32px font, font;
+    line-height: 30px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 3;
+  }
 </style>
 </head>
 <body>
 <div id="gameContainer">
   <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="dialogueOverlay"></div>
   <div id="startOverlay"></div>
   <button id="startButton">Press to Start</button>
 </div>
@@ -42,6 +63,7 @@ const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 const startButton = document.getElementById("startButton");
 const startOverlay = document.getElementById("startOverlay");
+const dialogueOverlay = document.getElementById("dialogueOverlay");
 
 // ---------------- IMAGES ----------------
 const background = new Image(); background.src='background.png';
@@ -103,7 +125,6 @@ let messages = [
   { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
 ];
 let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=18, waitingForClick=false; // chars/sec
-let dialogueBoxCacheText = "", dialogueBoxCacheLines = []; // cache wrapped lines to reduce phone lag
 let lastDisplayedCharCount = -1; // only rebuild displayedText when char count changes (less work)
 
 // ---------------- FLAGS ----------------
@@ -289,6 +310,7 @@ background.src = 'background.png';
     // Start a smooth fade-in from black
     fadeAlpha = 1;       // fully black
     fadeSpeed = 0.01;    // slower fade
+    dialogueOverlay.style.display = 'none';
 }
 // ---------------- MAIN LOOP ----------------
 let lastTime = 0;
@@ -374,18 +396,12 @@ function gameLoop(timestamp){
     }
   }
 
-  // DIALOGUE BOX (cache wrapped lines to cut work on phone)
+  // DIALOGUE BOX: use HTML overlay so Safari uses native text (less lag than canvas fillText)
   if((dialogueTriggered && displayedText.length>0) || choiceActive){
-    if(dialogueBoxCacheText !== displayedText){
-      ctx.font='32px font';
-      dialogueBoxCacheText = displayedText;
-      dialogueBoxCacheLines = getWrappedLines(ctx, displayedText, 665, 30);
-    }
-    ctx.fillStyle='black'; ctx.fillRect(35,450,730,120);
-    ctx.strokeStyle='white'; ctx.lineWidth=5; ctx.strokeRect(35,450,730,120);
-    ctx.fillStyle='white'; ctx.font='32px font';
-    const baseY = 490;
-    for(let i=0;i<dialogueBoxCacheLines.length;i++) ctx.fillText(dialogueBoxCacheLines[i].t, 75, baseY + dialogueBoxCacheLines[i].y);
+    dialogueOverlay.textContent = displayedText;
+    dialogueOverlay.style.display = 'block';
+  } else {
+    dialogueOverlay.style.display = 'none';
   }
 
   // CHOICES
