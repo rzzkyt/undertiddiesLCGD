@@ -65,6 +65,14 @@ const bleep1 = new Audio('bleep1.mp3'); bleep1.volume=0.4;
 const niceSound = new Audio('nice.mp3'); niceSound.volume=0.5;
 const wrongSound = new Audio('wrong.mp3'); wrongSound.volume=0.5;
 
+// Create short-lived clones so rapid bleeps work on mobile
+function playBleepSound(base){
+  const clone = base.cloneNode();
+  clone.volume = base.volume;
+  // fire-and-forget; mobile is happier with distinct nodes
+  clone.play();
+}
+
 // ---------------- DIALOGUE ----------------
 let bleepCooldown=0, bleepInterval=0.08; // (kept for potential future tuning, not strictly needed now)
 let messages = [
@@ -329,8 +337,7 @@ function gameLoop(timestamp){
           const ch = currentMsg.text[i];
           if(ch && !/\s/.test(ch)){
             const soundToPlay = currentMsg.sound||bleep;
-            soundToPlay.currentTime=0;
-            soundToPlay.play();
+            playBleepSound(soundToPlay);
           }
         }
       } else waitingForClick=true;
