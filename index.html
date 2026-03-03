@@ -102,8 +102,9 @@ let messages = [
   { prefix: "* [Raz]: ", text: "But maybe it should be /us/.", sound:bleep1 },
   { prefix: "* [Raz]: ", text: "What do you say?", sound:bleep1 },
 ];
-let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=22, waitingForClick=false; // chars/sec (slower on phone = fewer bleeps, less lag)
+let currentMessageIndex=0, displayedText="", textIndex=0, textSpeed=18, waitingForClick=false; // chars/sec
 let dialogueBoxCacheText = "", dialogueBoxCacheLines = []; // cache wrapped lines to reduce phone lag
+let lastDisplayedCharCount = -1; // only rebuild displayedText when char count changes (less work)
 
 // ---------------- FLAGS ----------------
 let shakeTriggered=false, zoomTriggered=false, lastMessageReadyForChoice=false;
@@ -237,7 +238,7 @@ canvas.addEventListener('click',(e)=>{
   if(dialogueTriggered && waitingForClick && !choiceActive && choiceMade===null){
     currentMessageIndex++;
     if(currentMessageIndex>=messages.length){ waitingForClick=false; }
-    else { displayedText=""; textIndex=0; }
+    else { displayedText=""; textIndex=0; lastDisplayedCharCount=-1; }
   }
 
   // START DIALOGUE
@@ -256,6 +257,7 @@ function restartScene() {
     currentMessageIndex = 0;
     displayedText = "";
     textIndex = 0;
+    lastDisplayedCharCount = -1;
     waitingForClick = false;
     waitingForClickToStartDialogue = false;
     dialogueTriggered = false;
@@ -290,9 +292,9 @@ background.src = 'background.png';
 }
 // ---------------- MAIN LOOP ----------------
 let lastTime = 0;
-const updateInterval = 1 / 30; // 30 FPS cap
+const updateInterval = 1 / 24; // 24 FPS cap (helps phone, not below 24)
 let lastBleepTime = 0;
-const bleepMinInterval = 0.08; // min seconds between bleeps (fewer = less lag, still in sync)
+const bleepMinInterval = 0.12; // min seconds between bleeps (fewer plays = less lag)
 
 function gameLoop(timestamp){
   if(!timestamp) timestamp = performance.now();
@@ -344,12 +346,13 @@ function gameLoop(timestamp){
       if(textIndex<currentMsg.text.length){
         const prevIndex = textIndex;
         textIndex = Math.min(currentMsg.text.length, textIndex + textSpeed*delta);
-        displayedText = (currentMsg.prefix || "") + currentMsg.text.slice(0, textIndex);
-
-        // Play a bleep for (almost) every newly revealed non-space character,
-        // even if multiple characters appear in one frame.
+        const newCharCount = Math.floor(textIndex);
+        if(newCharCount !== lastDisplayedCharCount){
+          lastDisplayedCharCount = newCharCount;
+          displayedText = (currentMsg.prefix || "") + currentMsg.text.slice(0, textIndex);
+        }
         const start = Math.floor(prevIndex);
-        const end = Math.floor(textIndex);
+        const end = newCharCount;
         if((timestamp - lastBleepTime) >= bleepMinInterval) {
           for(let i=start;i<end;i++){
             const ch = currentMsg.text[i];
